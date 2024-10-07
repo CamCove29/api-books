@@ -1,0 +1,25 @@
+DROP DATABASE IF EXISTS bd_api_books;
+CREATE DATABASE bd_api_books CHARSET utf8mb4;
+USE bd_api_books;
+
+-- Crear la tabla de libros
+CREATE TABLE api_books (
+    id INT(11) NOT NULL AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    author VARCHAR(255) NOT NULL,
+    genre VARCHAR(100) NOT NULL,
+    year INT(11) NOT NULL,
+    isbn VARCHAR(20) NOT NULL,
+    estado VARCHAR(50) NOT NULL,
+    PRIMARY KEY (id)
+);
+
+-- Insertar algunos datos iniciales
+INSERT INTO api_books (title, author, genre, year, isbn, estado) 
+VALUES ('The Great Gatsby', 'F. Scott Fitzgerald', 'Classic', 1925, '9780743273565', 'Disponible');
+INSERT INTO api_books (title, author, genre, year, isbn, estado) 
+VALUES ('1984', 'George Orwell', 'Dystopian', 1949, '9780451524935', 'Prestado');
+INSERT INTO api_books (title, author, genre, year, isbn, estado) 
+VALUES ('To Kill a Mockingbird', 'Harper Lee', 'Classic', 1960, '9780060935467', 'Disponible');
+
+COMMIT;

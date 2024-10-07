@@ -1,106 +1,108 @@
-from flask import Flask, request, jsonify, render_template
-import json
-import sqlite3
+from fastapi import FastAPI, HTTPException
+import mysql.connector
+from pydantic import BaseModel
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Conexión a la base de datos
-def db_connection():
-    conn = None
-    try:
-        conn = sqlite3.connect('api-books.sqlite')
-    except sqlite3.error as e:
-        print(e)
-    return conn
+# Detalles de conexión a la base de datos
+host_name = "100.27.62.167"
+port_number = "8005"
+user_name = "root"
+password_db = "utec"
+database_name = "bd_api_books"
 
+# Esquema Pydantic para validar el modelo de libro
+class Book(BaseModel):
+    title: str
+    author: str
+    genre: str
+    year: int
+    isbn: str
+    estado: str
 
-@app.route("/books", methods=["GET", "POST"])
-def books():
-    # Acceder a la conexión de la base de datos
-    conn = db_connection()
-    cursor = conn.cursor()
+# Ruta de prueba de conexión para comprobar si el servicio está funcionando
+@app.get("/")
+def get_echo_test():
+    return {"message": "Echo Test OK"}
 
-    # Creando nuestra solicitud GET para todos los libros
-    if request.method == "GET":
-        cursor = conn.execute("SELECT * FROM api-books")
-        books = [
-            dict(id=row[0], title=row[1], author=row[2], genre=row[3], year=row[4], isbn=row[5], estado=row[6])  # Añadido isbn y estado
-            for row in cursor.fetchall()
-        ]
+# Obtener todos los libros
+@app.get("/books")
+def get_books():
+    # Conexión a la base de datos
+    mydb = mysql.connector.connect(host=host_name, port=port_number, user=user_name, password=password_db, database=database_name)
+    cursor = mydb.cursor()
+    cursor.execute("SELECT * FROM api_books")  # Consulta SQL para obtener todos los libros
+    result = cursor.fetchall()
+    cursor.close()
+    mydb.close()
+    
+    # Verificar si se encontraron resultados
+    if not result:
+        raise HTTPException(status_code=404, detail="No se encontraron libros")
+    return {"books": result}
 
-        if books is not None:
-            return jsonify(books)
+# Obtener un libro por su ID
+@app.get("/books/{id}")
+def get_book(id: int):
+    # Conexión a la base de datos
+    mydb = mysql.connector.connect(host=host_name, port=port_number, user=user_name, password=password_db, database=database_name)
+    cursor = mydb.cursor()
+    cursor.execute("SELECT * FROM api_books WHERE id = %s", (id,))  # Consulta SQL para obtener un libro por ID
+    result = cursor.fetchone()
+    cursor.close()
+    mydb.close()
+    
+    # Verificar si el libro existe
+    if result is None:
+        raise HTTPException(status_code=404, detail="Libro no encontrado")
+    return {"book": result}
 
-    # Creando nuestra solicitud POST para un libro
-    if request.method == "POST":
-        title = request.form["title"]
-        author = request.form["author"]
-        genre = request.form["genre"]
-        year = request.form["year"]
-        isbn = request.form["isbn"]  # Nuevo atributo ISBN
-        estado = request.form["estado"]  # Nuevo atributo estado
+# Añadir un nuevo libro
+@app.post("/books")
+def add_book(book: Book):
+    # Conexión a la base de datos
+    mydb = mysql.connector.connect(host=host_name, port=port_number, user=user_name, password=password_db, database=database_name)
+    cursor = mydb.cursor()
+    
+    # Consulta SQL para insertar un nuevo libro
+    sql = "INSERT INTO api_books (title, author, genre, year, isbn, estado) VALUES (%s, %s, %s, %s, %s, %s)"
+    val = (book.title, book.author, book.genre, book.year, book.isbn, book.estado)
+    cursor.execute(sql, val)
+    mydb.commit()
+    cursor.close()
+    mydb.close()
+    
+    return {"message": "Libro añadido exitosamente"}
 
-        # Consulta SQL para INSERTAR un libro en nuestra base de datos
-        sql = """INSERT INTO api-books (title, author, genre, year, isbn, estado)
-                 VALUES (?, ?, ?, ?, ?, ?)"""
+# Actualizar un libro por su ID
+@app.put("/books/{id}")
+def update_book(id: int, book: Book):
+    # Conexión a la base de datos
+    mydb = mysql.connector.connect(host=host_name, port=port_number, user=user_name, password=password_db, database=database_name)
+    cursor = mydb.cursor()
+    
+    # Consulta SQL para actualizar un libro
+    sql = "UPDATE api_books SET title=%s, author=%s, genre=%s, year=%s, isbn=%s, estado=%s WHERE id=%s"
+    val = (book.title, book.author, book.genre, book.year, book.isbn, book.estado, id)
+    cursor.execute(sql, val)
+    mydb.commit()
+    cursor.close()
+    mydb.close()
+    
+    return {"message": "Libro actualizado exitosamente"}
 
-        cursor = cursor.execute(sql, (title, author, genre, year, isbn, estado))
-        conn.commit()
-        return f"Book with id: {cursor.lastrowid} created successfully"
+# Eliminar un libro por su ID
+@app.delete("/books/{id}")
+def delete_book(id: int):
+    # Conexión a la base de datos
+    mydb = mysql.connector.connect(host=host_name, port=port_number, user=user_name, password=password_db, database=database_name)
+    cursor = mydb.cursor()
+    
+    # Consulta SQL para eliminar un libro
+    cursor.execute("DELETE FROM api_books WHERE id = %s", (id,))
+    mydb.commit()
+    cursor.close()
+    mydb.close()
+    
+    return {"message": "Libro eliminado exitosamente"}
 
-
-# Ruta con todos los métodos de solicitud necesarios para un solo libro
-@app.route('/book/<int:id>', methods=["GET", "PUT", "DELETE"])
-def book(id):
-    conn = db_connection()
-    cursor = conn.cursor()
-    book = None
-
-    # Creando nuestra solicitud GET para un libro
-    if request.method == "GET":
-        cursor.execute("SELECT * FROM api-books WHERE id=?", (id,))
-        rows = cursor.fetchall()
-        for row in rows:
-            book = row
-        if book is not None:
-            return jsonify(book), 200
-        else:
-            return "Something went wrong", 404
-
-    # Creando nuestra solicitud PUT para un libro
-    if request.method == "PUT":
-        sql = """UPDATE api-books SET title=?, author=?, genre=?, year=?, isbn=?, estado=?
-                 WHERE id=?"""
-
-        title = request.form["title"]
-        author = request.form["author"]
-        genre = request.form["genre"]
-        year = request.form["year"]
-        isbn = request.form["isbn"]  # Actualizar ISBN
-        estado = request.form["estado"]  # Actualizar estado
-
-        updated_book = {
-            "id": id,
-            "title": title,
-            "author": author,
-            "genre": genre,
-            "year": year,
-            "isbn": isbn,
-            "estado": estado
-        }
-
-        conn.execute(sql, (title, author, genre, year, isbn, estado, id))
-        conn.commit()
-        return jsonify(updated_book)
-
-    # Creando nuestra solicitud DELETE para un libro
-    if request.method == "DELETE":
-        sql = """DELETE FROM api-books WHERE id=?"""
-        conn.execute(sql, (id,))
-        conn.commit()
-
-        return "The book with id: {} has been deleted.".format(id), 200
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=False)

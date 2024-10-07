@@ -1,7 +1,13 @@
 FROM python:3-slim
-WORKDIR /programas/api-books
-RUN pip3 install flask
-COPY . .
-RUN python3 db.py
-CMD [ "python3", "./app.py" ]
 
+# Establecer el directorio de trabajo en /programas/api-books
+WORKDIR /programas/api-books
+
+# Instalar dependencias necesarias
+RUN pip3 install "fastapi[standard]"
+RUN pip3 install pydantic
+RUN pip3 install mysql-connector-python
+
+# Copiar todos los archivos al contenedor
+COPY . .
+CMD ["fastapi", "run", "./main.py", "--port", "8000"]
